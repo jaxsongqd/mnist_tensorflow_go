@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -48,8 +49,27 @@ func main() {
 	results := tg.Exec(root, []tf.Output{img1.Value()}, nil, &tf.SessionOptions{})
 	fmt.Println("len result:", len(results))
 	tensor := results[0]
+
 	fmt.Printf("DataType:%#v\n", tensor.DataType())
 	fmt.Printf("shape:%#v\n", tensor.Shape())
+	buf := new(bytes.Buffer)
+
+	n, err := tensor.WriteContentsTo(buf)
+	if err != nil {
+		fmt.Println(err)
+	}
+	if n != int64(buf.Len()) {
+		fmt.Printf(" WriteContentsTo said it wrote %v bytes, but wrote %v", n, buf.Len())
+	}
+	//    t2, err := ReadTensor(t1.DataType(), t1.Shape(), buf)
+	t2, err := tf.ReadTensor(tensor.DataType(), []int64{28 * 28}, buf)
+	if err != nil {
+		fmt.Printf("%v", err)
+	}
+	fmt.Printf("DataType:%#v\n", t2.DataType())
+	fmt.Printf("shape:%#v\n", t2.Shape())
+
+	tensor = t2
 	/*
 		var tfoutput tf.Output
 		tfoutput = img1.Value()
@@ -60,14 +80,6 @@ func main() {
 		}
 		tensor, err := tf.ReadTensor(tfoutput.DataType(), tfshape, strings.NewReader(string(imageBytes)))
 	*/
-	tmp2D := [][]float32{}
-	for _, v := range tensor.Value().([][][]float32) {
-		tmp2D = append(tmp2D, v...)
-	}
-	tmp1D := []float32{}
-	for _, v := range tmp2D {
-		tmp1D = append(tmp1D, v...)
-	}
 	//	fmt.Println("value:", tensor.Value())
 	request := &pb.PredictRequest{
 		ModelSpec: &pb.ModelSpec{
@@ -83,19 +95,16 @@ func main() {
 				TensorShape: &tf_core_framework.TensorShapeProto{
 					Dim: []*tf_core_framework.TensorShapeProto_Dim{
 						&tf_core_framework.TensorShapeProto_Dim{
-							Size: tensor.Shape()[0],
-						},
-						&tf_core_framework.TensorShapeProto_Dim{
-							Size: tensor.Shape()[1],
+							Size: 1,
 						},
 
 						&tf_core_framework.TensorShapeProto_Dim{
-							Size: tensor.Shape()[2],
+							Size: 784,
 						},
 					},
 				},
 				//				FloatVal: tensor.Value().([]float32),
-				FloatVal: tmp1D,
+				FloatVal: tensor.Value().([]float32),
 			},
 		},
 	}
